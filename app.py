@@ -21,7 +21,10 @@ class DL24Logger:
     def __init__(self, format):
         self.format = format
         self.log_number = 0
-
+        self.session_start = datetime.datetime.now()
+        self.session_total_capacity = 0
+        self.last_read = datetime.datetime.now()
+        
     def log(self, sender, data):
         """
     Log data from DL24 BLE device.
@@ -39,6 +42,9 @@ class DL24Logger:
         energy = int.from_bytes(data[0x0d:0x11]) * 10
         temperature = int.from_bytes(data[0x18:0x1a], 'big', signed=False)
 
+        # Capacity in mAh on the basis of 1-second updates
+        self.session_total_capacity = self.session_total_capacity + current / 3600
+
         data_dict['timestamp'] = datetime.datetime.now().isoformat()
         data_dict['voltage_V'] = voltage 
         data_dict['current_mA'] = current
@@ -46,6 +52,7 @@ class DL24Logger:
         data_dict['resistance_Ohm'] = f'{resistance:.2f}'
         data_dict['capacity_mAh'] = capacity
         data_dict['energy_Wh'] = energy
+        data_dict['session_total_capacity_mAh'] = f'{self.session_total_capacity:.2f}'
 
         data_dict['temperature_C'] = temperature
 
@@ -55,6 +62,7 @@ class DL24Logger:
             self.json(data_dict)
 
         self.log_number += 1
+        self.last_read = datetime.datetime.now()
 
     def csv(self, data_dict):
         """ 
@@ -95,6 +103,8 @@ async def read(device, char_uuid, dl24logger):
         await client.start_notify(char_uuid, dl24logger.log)
         while (True):
             await asyncio.sleep(1)
+            if (datetime.datetime.now() - dl24logger.last_read).total_seconds() > 30:
+                raise Exception("No data received for 30 seconds")
 
 async def main():
     dl24logger = DL24Logger('csv')
