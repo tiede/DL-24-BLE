@@ -1,95 +1,108 @@
 import asyncio
 from bleak import BleakScanner, BleakClient
 import logging
+import json
+import sys
+import datetime
+from collections import OrderedDict
+
+from bleak.backends.device import BLEDevice
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
+
 device_name = "DL24_BLE"
+char_uuid = '0000ffe1-0000-1000-8000-00805f9b34fb'
 
-def callback(sender, data):
-    print(', '.join('{:02d}'.format(x) for x in data))
+class DL24Logger:
+    """ 
+    Class for logging data from DL24 BLE device.
+    """
+    def __init__(self, format):
+        self.format = format
+        self.log_number = 0
 
-async def main():
-    device = None
-    while (device == None):
+    def log(self, sender, data):
+        """
+    Log data from DL24 BLE device.
+
+    This is the callback function that is called on every measurement
+    """
+        data_dict = OrderedDict()
+        voltage = int.from_bytes(data[0x04:0x07], 'big', signed=False) / 10.0
+        current = int.from_bytes(data[0x07:0x0a], 'big', signed=False)
+        power = voltage * (current / 1000)
+        resistance = 0
+        if (voltage > 0 and current > 0):
+            resistance = voltage / (current/1000)
+        capacity = int.from_bytes(data[0x0a:0x0d], 'big', signed=False) * 10
+        energy = int.from_bytes(data[0x0d:0x11]) * 10
+        temperature = int.from_bytes(data[0x18:0x1a], 'big', signed=False)
+
+        data_dict['timestamp'] = datetime.datetime.now().isoformat()
+        data_dict['voltage_V'] = voltage 
+        data_dict['current_mA'] = current
+        data_dict['power_W'] = f'{power:.2f}'
+        data_dict['resistance_Ohm'] = f'{resistance:.2f}'
+        data_dict['capacity_mAh'] = capacity
+        data_dict['energy_Wh'] = energy
+
+        data_dict['temperature_C'] = temperature
+
+        if (self.format == 'csv'):
+            self.csv(data_dict)
+        elif (self.format == 'json'):
+            self.json(data_dict)
+
+        self.log_number += 1
+
+    def csv(self, data_dict):
+        """ 
+        Log data in CSV format.
+        """
+        if self.log_number == 0:
+            print(','.join(data_dict.keys()))
+        print(','.join([str(x) for x in data_dict.values()]))
+
+    def json(self, data_dict):
+        """ 
+        Log data in JSON format.
+        """
+        json.dump(data_dict, sys.stdout)
+        
+async def discover_device(device_name) -> BLEDevice:
+    """ 
+    Discover DL24 BLE device given the name of the device
+    """
+    while (True):
         devices = await BleakScanner.discover()
         for d in devices:
             logger.debug(f'Device {d.name} discovered')
             if (d.name.find(device_name) >= 0):
-                device = d
+                return d
 
-    if (device == None):
-        raise Exception(f'No device with name {device_name} found')
-    
+async def read(device, char_uuid, dl24logger):
+    """ 
+    Read data from DL24 BLE device given the device and the UUID of the characteristic
+    """
     async with BleakClient(
         device,
         pair=True,
+        timeout=60
     ) as client:
         logger.info("connected")
 
-        if (len(client.services.services) < 1):
-             raise Exception(f'No services for device {device_name}')
-
-        for service in client.services:
-            logger.info("[Service] %s", service)
-
-            # if (len(service.characteristics) < 1):
-            #     raise Exception(f'No characteristics for service {service.uuid}')
-
-            for char in service.characteristics:
-                #await client.start_notify(char.uuid, callback)
-                if "read" in char.properties:
-                    try:
-                        value = await client.read_gatt_char(char.uuid)
-                        extra = f", Value: {value}"
-                    except Exception as e:
-                        extra = f", Error: {e}"
-                else:
-                    extra = ""
-
-                if "write-without-response" in char.properties:
-                    extra += f", Max write w/o rsp size: {char.max_write_without_response_size}"
-
-                logger.info(
-                    "  [Characteristic] %s (%s)%s",
-                    char,
-                    ",".join(char.properties),
-                    extra,
-                )
-
-                # for descriptor in char.descriptors:
-                #     try:
-                #         value = await client.read_gatt_descriptor(descriptor.handle)
-                #         logger.info("    [Descriptor] %s, Value: %r", descriptor, value)
-                #     except Exception as e:
-                #         logger.error("    [Descriptor] %s, Error: %s", descriptor, e)
-
-        char_uuid = '0000ffe1-0000-1000-8000-00805f9b34fb'
-
-        #characteristic = client.
-        await client.start_notify(char_uuid, callback)
+        await client.start_notify(char_uuid, dl24logger.log)
         while (True):
             await asyncio.sleep(1)
 
-        logger.info("disconnecting...")
-
-    logger.info("disconnected")
+async def main():
+    dl24logger = DL24Logger('csv')
+    #dl24logger = DL24Logger('json')
+    device = await discover_device(device_name)
+    if (device != None):
+        await read(device, char_uuid, dl24logger)
+    else:
+        raise Exception(f'No device with name {device_name} found')
     
-
-#loop = asyncio.get_event_loop()
-#loop.set_debug(True)
-#loop.run_until_complete(main())'
-
 asyncio.run(main())
-
-# from bleak import BleakClient
-
-# address = "65:F8:C4:AE:A3:BF"
-# MODEL_NBR_UUID = "2A24"
-
-# async def main(address):
-#      async with BleakClient(address) as client:
-#          model_number = await client.read_gatt_char(MODEL_NBR_UUID)
-#          print("Model Number: {0}".format("".join(map(chr, model_number))))
-
-# asyncio.run(main(address))
