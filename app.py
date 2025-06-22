@@ -23,6 +23,7 @@ class DL24Logger:
         self.log_number = 0
         self.session_start = datetime.datetime.now()
         self.session_total_capacity = 0
+        self.session_total_energy = 0
         self.last_read = datetime.datetime.now()
         
     def log(self, sender, data):
@@ -44,6 +45,7 @@ class DL24Logger:
 
         # Capacity in mAh on the basis of 1-second updates
         self.session_total_capacity = self.session_total_capacity + current / 3600
+        self.session_total_energy = self.session_total_energy + power / 3600
 
         data_dict['timestamp'] = datetime.datetime.now().isoformat()
         data_dict['voltage_V'] = voltage 
@@ -53,6 +55,7 @@ class DL24Logger:
         data_dict['capacity_mAh'] = capacity
         data_dict['energy_Wh'] = energy
         data_dict['session_total_capacity_mAh'] = f'{self.session_total_capacity:.2f}'
+        data_dict['session_total_energy_Wh'] = f'{self.session_total_energy:.2f}'
 
         data_dict['temperature_C'] = temperature
 
@@ -82,12 +85,16 @@ async def discover_device(device_name) -> BLEDevice:
     """ 
     Discover DL24 BLE device given the name of the device
     """
-    while (True):
+    retries = 0
+    while (retries < 5):
         devices = await BleakScanner.discover()
         for d in devices:
             logger.debug(f'Device {d.name} discovered')
             if (d.name.find(device_name) >= 0):
                 return d
+        retries += 1
+        await asyncio.sleep(5)
+    raise Exception(f'No device with name {device_name} found')
 
 async def read(device, char_uuid, dl24logger):
     """ 
