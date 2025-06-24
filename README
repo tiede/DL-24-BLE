@@ -1,0 +1,22 @@
+# DL-24 BLE Logger
+
+This is a simple Python script that logs data from a DL-24 BLE device.
+
+I have found other repositories but could not get any of them working with my version of the Atorch DL-24 BLE device.
+
+The protocol seems to have changed and the repositories I found were not updated.
+
+## Prerequisites
+
+- Python 3.7 or higher
+- bleak
+
+## Usage
+
+```bash
+python app.py
+```
+
+## License
+
+MIT
