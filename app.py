@@ -11,7 +11,9 @@ from bleak.backends.device import BLEDevice
 logger = logging.getLogger(__name__)
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
+# The bluetooth device name
 device_name = "DL24_BLE"
+# The UUID of the characteristic to read - use ble-discovery.py to find it
 char_uuid = '0000ffe1-0000-1000-8000-00805f9b34fb'
 
 class DL24Logger:
