@@ -65,6 +65,8 @@ class DL24Logger:
             self.csv(data_dict)
         elif (self.format == 'json'):
             self.json(data_dict)
+        else:
+            self.raw(data, True)
 
         self.log_number += 1
         self.last_read = datetime.datetime.now()
@@ -82,6 +84,14 @@ class DL24Logger:
         Log data in JSON format.
         """
         json.dump(data_dict, sys.stdout)
+
+    def raw(self, data_dict, pretty):
+        if pretty:
+            data_raw = (''.join('{:02x} '.format(x) for x in data_dict))
+        else:
+            data_raw = (''.join('{:02x}'.format(x) for x in data_dict))
+        
+        print(data_raw)
         
 async def discover_device(device_name) -> BLEDevice:
     """ 
@@ -118,6 +128,7 @@ async def read(device, char_uuid, dl24logger):
 async def main():
     dl24logger = DL24Logger('csv')
     #dl24logger = DL24Logger('json')
+    #dl24logger = DL24Logger('raw')
     device = await discover_device(device_name)
     if (device != None):
         await read(device, char_uuid, dl24logger)
