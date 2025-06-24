@@ -5,6 +5,7 @@ import json
 import sys
 import datetime
 from collections import OrderedDict
+import asyncclick as click
 
 from bleak.backends.device import BLEDevice
 
@@ -70,6 +71,7 @@ class DL24Logger:
 
         self.log_number += 1
         self.last_read = datetime.datetime.now()
+        sys.stdout.flush()
 
     def csv(self, data_dict):
         """ 
@@ -86,10 +88,15 @@ class DL24Logger:
         json.dump(data_dict, sys.stdout)
 
     def raw(self, data_dict, pretty):
-        if pretty:
-            data_raw = (''.join('{:02x} '.format(x) for x in data_dict))
+        if self.format == 'raw-decimal':
+            formatter = '{:02d}'
         else:
-            data_raw = (''.join('{:02x}'.format(x) for x in data_dict))
+            formatter = '{:02x}'
+
+        if pretty:
+            formatter = formatter + ' '
+
+        data_raw = (''.join(formatter.format(x) for x in data_dict))
         
         print(data_raw)
         
@@ -125,10 +132,11 @@ async def read(device, char_uuid, dl24logger):
             if (datetime.datetime.now() - dl24logger.last_read).total_seconds() > 30:
                 raise Exception("No data received for 30 seconds")
 
-async def main():
-    dl24logger = DL24Logger('csv')
-    #dl24logger = DL24Logger('json')
-    #dl24logger = DL24Logger('raw')
+@click.command()
+@click.argument('format', required=True, type=click.Choice(['csv', 'json', 'raw', 'raw-decimal']))
+@click.option('--debug', '-d', is_flag=True)
+async def main(format, debug):
+    dl24logger = DL24Logger(format)
     device = await discover_device(device_name)
     if (device != None):
         await read(device, char_uuid, dl24logger)
