@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
 # The bluetooth device name
-device_name = "DL24_BLE"
+#device_name = "DL24_BLE"
+#device_name = "S1BP_BLE"
 # The UUID of the characteristic to read - use ble-discovery.py to find it
 char_uuid = '0000ffe1-0000-1000-8000-00805f9b34fb'
 
@@ -109,7 +110,7 @@ async def discover_device(device_name) -> BLEDevice:
         devices = await BleakScanner.discover()
         for d in devices:
             logger.debug(f'Device {d.name} discovered')
-            if (d.name.find(device_name) >= 0):
+            if (d is not None and d.name is not None and d.name.find(device_name) >= 0):
                 return d
         retries += 1
         await asyncio.sleep(5)
@@ -121,7 +122,7 @@ async def read(device, char_uuid, dl24logger):
     """
     async with BleakClient(
         device,
-        pair=True,
+        pair=False,
         timeout=60
     ) as client:
         logger.info("connected")
@@ -135,12 +136,13 @@ async def read(device, char_uuid, dl24logger):
 @click.command()
 @click.argument('format', required=True, type=click.Choice(['csv', 'json', 'raw', 'raw-decimal']))
 @click.option('--debug', '-d', is_flag=True)
-async def main(format, debug):
+@click.option('--devicename', '-dn', default='DL24_BLE')
+async def main(format, debug, devicename):
     dl24logger = DL24Logger(format)
-    device = await discover_device(device_name)
+    device = await discover_device(devicename)
     if (device != None):
         await read(device, char_uuid, dl24logger)
     else:
-        raise Exception(f'No device with name {device_name} found')
+        raise Exception(f'No device with name {devicename} found')
     
 asyncio.run(main())

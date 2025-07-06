@@ -1,0 +1,1 @@
+python3 app.py --devicename=DL24_BLE csv

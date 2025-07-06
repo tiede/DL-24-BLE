@@ -5,7 +5,8 @@ import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
-device_name = "DL24_BLE"
+#device_name = "DL24_BLE"
+device_name = "S1BP_BLE"
 device = None
 
 async def discover_device(device_name):
@@ -13,7 +14,7 @@ async def discover_device(device_name):
         devices = await BleakScanner.discover()
         for d in devices:
             logger.debug(f'Device {d.name} discovered')
-            if (d.name.find(device_name) >= 0):
+            if (d is not None and d.name is not None and d.name.find(device_name) >= 0):
                 return d
 
 async def discover_devices():
@@ -25,7 +26,8 @@ async def discover_devices():
 async def explore_device(device):
     async with BleakClient(
         device,
-        pair=True,
+        pair=False,
+        timeout=60
     ) as client:
         logger.info("connected")
 
@@ -71,7 +73,7 @@ async def explore_device(device):
     logger.info("disconnected")
 
 async def main():
-    await discover_devices()
+    #await discover_devices()
     device = await discover_device(device_name)
     
     if (device != None):
